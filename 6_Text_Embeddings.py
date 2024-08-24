@@ -18,6 +18,7 @@ tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForCausalLM.from_pretrained(model_name,
                                              device_map="auto")
 
+g = torch.load(g_file_path).to(device) # g_file_path in store_matrices.py
 
 #%%
 prompt = "I want to prepare a detailed description of a business. Select some industry and list, please, aspects of the business in that industry I should include into the description."
@@ -38,12 +39,14 @@ print(text)
 token_to_text_position = []
 text_position_to_token = []
 position = 0
-for token, index in enumerate(output_tokens):
+for index, token  in enumerate(output_tokens):
     token_text = tokenizer.decode([token])
     token_to_text_position.append(position)
     for i in range(len(token_text)):
         text_position_to_token.append(index)
     position += len(token_text)
+    if position > len(text):
+        break
 
 # %%
 # find text position of industry name and each apect
@@ -84,16 +87,18 @@ industry_position, aspect_positions = find_gemma_2_positions(text)
 #%%
 # map text position to token position
 # map token position to embedding
-g = torch.load(g_file_path).to(device) # g_file_path in store_matrices.py
 
 # compute from embedding logits and then from logits embedding in g-space
 def make_embedding(model, hidden_state, g):
+    lm_head = model.get_output_embeddings()
     logits = lm_head(hidden_state)
     logits = logits / model.config.final_logit_softcapping
     logits = torch.tanh(logits)
     logits = logits * model.config.final_logit_softcapping
 
-    return g @ logits
+    logits = logits[0][0].detach()
+
+    return logits @ g
 
 industry_token_position = text_position_to_token[industry_position]
 industry_hidden_state = output.hidden_states[industry_token_position][-1]
@@ -111,8 +116,8 @@ def estimate_cat_dir(category_embeddings):
     lda_dir, category_mean = hrc.estimate_single_dir_from_embeddings(category_embeddings)
     return {'lda': lda_dir, 'mean': category_mean}
 
-industry_dir = estimate_cat_dir(aspect_embeddings)
-aspect_dirs = [estimate_cat_dir(torch.unsqueeze(embedding)) for embedding in aspect_embeddings]
+industry_dir = estimate_cat_dir(torch.stack(aspect_embeddings))
+aspect_dirs = [estimate_cat_dir(torch.unsqueeze(embedding, 0)) for embedding in aspect_embeddings]
 
 # build diagram
 
