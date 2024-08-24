@@ -25,18 +25,20 @@ prompt = "I want to prepare a detailed description of a business. Select some in
 # prompt = "Hi"
 
 #%%
-tokens = tokenizer(prompt, return_tensors="pt")
-max_length = len(tokens.input_ids[0]) + 50
+tokens = tokenizer(prompt, return_tensors="pt").to(model.device)
+max_length = len(tokens.input_ids[0]) + 1024
 output = model.generate(**tokens, max_length=max_length, output_hidden_states=True, return_dict_in_generate=True, output_logits=True)
 
 # %%
-text = tokenizer.decode(output.sequences[0])
+output_tokens = output.sequences[0].to('cpu').detach().numpy()
+text = tokenizer.decode(output_tokens)
+print(text)
 
 # map output_text <--> tokens
 token_to_text_position = []
 text_position_to_token = []
 position = 0
-for token, index in enumerate(output.sequences[0]):
+for token, index in enumerate(output_tokens):
     token_text = tokenizer.decode([token])
     token_to_text_position.append(position)
     for i in range(len(token_text)):
@@ -47,7 +49,23 @@ for token, index in enumerate(output.sequences[0]):
 # find text position of industry name and each apect
 
 import re
-def find_positions(markdown):
+
+def find_gemma_2_positions(markdown):
+    # Find the position of the industry name
+    industry_match = re.search(r'\*\*Industry:\*\*  \*\*(.*?)\*\*', markdown)
+    industry_position = industry_match.start(1) if industry_match else -1
+    industry_name = industry_match.group(1) if industry_match else None
+
+    # Find the positions of each aspect name
+    aspect_positions = {}
+    for match in re.finditer(r'\* \*\*(.*?):\*\*', markdown):
+        aspect_name = match.group(1)
+        aspect_positions[aspect_name] = match.start()
+
+    return industry_position, aspect_positions
+    
+
+def find_llama_3_1_positions(markdown):
     # Find the position of the industry name
     industry_match = re.search(r'"(.*?)"', markdown)
     industry_position = industry_match.start(1) if industry_match else -1
@@ -61,7 +79,7 @@ def find_positions(markdown):
 
     return industry_position, aspect_positions
 
-industry_position, aspect_positions = find_positions(text)
+industry_position, aspect_positions = find_gemma_2_positions(text)
 
 #%%
 # map text position to token position
@@ -77,8 +95,8 @@ def make_embedding(model, hidden_state, g):
 
     return g @ logits
 
-industry_token_positin = text_position_to_token[industry_position]
-industry_hidden_state = output.hidden_states[industry_token_positin][-1]
+industry_token_position = text_position_to_token[industry_position]
+industry_hidden_state = output.hidden_states[industry_token_position][-1]
 industry_embedding = make_embedding(model, industry_hidden_state, g)
 
 aspect_token_positions = [text_position_to_token[position] for position in aspect_positions.values() ]
