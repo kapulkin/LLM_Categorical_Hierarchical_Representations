@@ -27,7 +27,7 @@ prompt = "I want to prepare a detailed description of a business. Select some in
 
 #%%
 tokens = tokenizer(prompt, return_tensors="pt").to(model.device)
-max_length = len(tokens.input_ids[0]) + 1024
+max_length = len(tokens.input_ids[0]) + 250
 output = model.generate(**tokens, max_length=max_length, output_hidden_states=True, return_dict_in_generate=True, output_logits=True)
 
 # %%
@@ -60,12 +60,12 @@ def find_gemma_2_positions(markdown):
     industry_name = industry_match.group(1) if industry_match else None
 
     # Find the positions of each aspect name
-    aspect_positions = {}
+    aspect_positions = []
     for match in re.finditer(r'\* \*\*(.*?):\*\*', markdown):
         aspect_name = match.group(1)
-        aspect_positions[aspect_name] = match.start()
+        aspect_positions.append((aspect_name, match.start()))
 
-    return industry_position, aspect_positions
+    return (industry_name, industry_position), aspect_positions
     
 
 def find_llama_3_1_positions(markdown):
@@ -75,14 +75,20 @@ def find_llama_3_1_positions(markdown):
     industry_name = industry_match.group(1) if industry_match else None
 
     # Find the positions of each aspect name
-    aspect_positions = {}
+    aspect_positions = []
     for match in re.finditer(r'\*\*(.*?)\*\*', markdown):
         aspect_name = match.group(1)
-        aspect_positions[aspect_name] = match.start()
+        aspect_positions.append((aspect_name, match.start()))
 
-    return industry_position, aspect_positions
+    return (industry_name, industry_position), aspect_positions
 
-industry_position, aspect_positions = find_gemma_2_positions(text)
+industry, aspect_positions = find_gemma_2_positions(text)
+
+industry_name, industry_position = industry
+
+print(f"industry: {industry_name}, ")
+for aspect_name, aspect_position in aspect_positions.items():
+    print(f"aspect: {text[aspect_position:aspect_position + 10]}")
 
 #%%
 # map text position to token position
@@ -104,7 +110,7 @@ industry_token_position = text_position_to_token[industry_position]
 industry_hidden_state = output.hidden_states[industry_token_position][-1]
 industry_embedding = make_embedding(model, industry_hidden_state, g)
 
-aspect_token_positions = [text_position_to_token[position] for position in aspect_positions.values() ]
+aspect_token_positions = [text_position_to_token[position] for _, position in aspect_positions ]
 aspect_hidden_states = [output.hidden_states[position][-1] for position in aspect_token_positions]
 aspect_embeddings = [make_embedding(model, hidden_state, g) for hidden_state in aspect_hidden_states]
 
@@ -182,10 +188,10 @@ def build_3d_plot(dirs, embeddings):
     dir3 = dirs[cat3]["lda"]
     dir4 = dirs[cat4]["lda"]
 
-    xaxis = (dir2 - dir1) / (dir2-dir1).norm()
-    yaxis = dir3 - dir1 - (dir3-dir1) @ xaxis * xaxis
+    xaxis = dir1 / dir1.norm()
+    yaxis = dir2 - (dir2 @ xaxis) * xaxis
     yaxis = yaxis / yaxis.norm()
-    zaxis = (dir4 - dir1) - (dir4 - dir1) @ xaxis * xaxis - (dir4 - dir1) @ yaxis * yaxis
+    zaxis = dir3 - (dir3 @ xaxis) * xaxis - (dir3 @ yaxis) * yaxis
     zaxis = zaxis / zaxis.norm()
 
     axes = torch.stack([xaxis, yaxis, zaxis], dim=1)
@@ -193,12 +199,10 @@ def build_3d_plot(dirs, embeddings):
     g1 = embeddings[0]
     g2 = embeddings[1]
     g3 = embeddings[2]
-    g4 = embeddings[3]
-
+    
     proj1 = (g1 @ axes).cpu().numpy()
     proj2 = (g2 @ axes).cpu().numpy()
     proj3 = (g3 @ axes).cpu().numpy()
-    proj4 = (g4 @ axes).cpu().numpy()
     proj = (g @ axes).cpu().numpy()
 
     P1 = (dir1 @ axes).cpu().numpy()
@@ -216,41 +220,22 @@ def build_3d_plot(dirs, embeddings):
     triangle1.set_facecolor('yellow')
     ax.add_collection3d(triangle1)
 
-    verts2 = [list(zip([P1[0], P2[0], P4[0]], [P1[1], P2[1], P4[1]], [P1[2], P2[2], P4[2]]))]
-    triangle2 = Poly3DCollection(verts2, alpha=.1, linewidths=1, linestyle =  "--", edgecolors='k')
-    triangle2.set_facecolor('yellow')
-    ax.add_collection3d(triangle2)
-
-    verts3 = [list(zip([P1[0], P3[0], P4[0]], [P1[1], P3[1], P4[1]], [P1[2], P3[2], P4[2]]))]
-    triangle3 = Poly3DCollection(verts3, alpha=.1, linewidths=1, linestyle =  "--", edgecolors='k')
-    triangle3.set_facecolor('yellow')
-    ax.add_collection3d(triangle3)
-
-    verts4 = [list(zip([P2[0], P3[0], P4[0]], [P2[1], P3[1], P4[1]], [P2[2], P3[2], P4[2]]))]
-    triangle4 = Poly3DCollection(verts4, alpha=.1, linewidths=1, linestyle =  "--", edgecolors='k')
-    triangle4.set_facecolor('yellow')
-    ax.add_collection3d(triangle4)
-
-
     ax.quiver(0, 0, 0, P1[0], P1[1], P1[2], color='r', arrow_length_ratio=0.01)
     ax.quiver(0, 0, 0, P2[0], P2[1], P2[2], color='g', arrow_length_ratio=0.01)
     ax.quiver(0, 0, 0, P3[0], P3[1], P3[2], color='b', arrow_length_ratio=0.01)
-    ax.quiver(0, 0, 0, P4[0], P4[1], P4[2], color='m', arrow_length_ratio=0.01)
 
 
     scatter1 = ax.scatter(proj1[:,0], proj1[:,1], proj1[:,2], c='r', label=cat1)
     scatter2 = ax.scatter(proj2[:,0], proj2[:,1], proj2[:,2], c='g', label=cat2)
     scatter3 = ax.scatter(proj3[:,0], proj3[:,1], proj3[:,2], c='b', label=cat3)
-    scatter4 = ax.scatter(proj4[:,0], proj4[:,1], proj4[:,2], c='m', label=cat4)
     scatter = ax.scatter(proj[:,0], proj[:,1], proj[:,2], c='gray', s= 0.05, alpha = 0.01)
 
 
-    scale = 1.4
-    scale2 = 1.2
-    ax.text(P1[0]*scale-1, P1[1]* scale, P1[2]*scale, cat1, bbox=dict(facecolor='r', alpha=0.2))
-    ax.text(P2[0]*scale+1, P2[1]* scale, P2[2]*scale, cat2, bbox=dict(facecolor='g', alpha=0.2))
-    ax.text(P3[0]*scale-1, P3[1]* scale, P3[2]*scale, cat3, bbox=dict(facecolor='b', alpha=0.2))
-    ax.text(P4[0]*scale2+2, P4[1]* scale2, P4[2]*scale2-1, cat4, bbox=dict(facecolor='m', alpha=0.2))
+    scale = 1.2
+    ax.text(P1[0]*scale + 2, P1[1]* scale, P1[2]*scale, cat1, bbox=dict(facecolor='r', alpha=0.2))
+    ax.text(P2[0]*scale+0.5, P2[1]* scale+0.5, P2[2]*scale, cat2, bbox=dict(facecolor='g', alpha=0.2))
+    ax.text(P3[0]*scale, P3[1]* scale, P3[2]*scale, cat3, bbox=dict(facecolor='b', alpha=0.2))
+    ax.text(P4[0]-0.6, P4[1]-0.6, P4[2], rf'$\bar{{\ell}}_{{{cat4}}}$', bbox=dict(facecolor='k', alpha=0.2))
 
     ax.set_xlim(-8,10)
     ax.set_ylim(-8,10)
@@ -262,9 +247,12 @@ def build_3d_plot(dirs, embeddings):
     fig.savefig(f"figures/two_3D_plots.png", dpi=300, bbox_inches='tight')
     plt.show()
 
+dirs_dict = { aspect_name: aspect_dir for (aspect_name, _), aspect_dir, _ in zip(aspect_positions, aspect_dirs, range(3)) }
+dirs_dict[industry_name] = industry_dir
+
 build_3d_plot(
-    { aspect_name: aspect_dir for aspect_name, aspect_dir, _ in zip(aspect_positions.keys(), aspect_dirs, range(4)) },
-    aspect_embeddings[:4]
+    dirs_dict,
+    aspect_embeddings[:3] + [industry_embedding]
 )
 
 #%% Check logits calculation
