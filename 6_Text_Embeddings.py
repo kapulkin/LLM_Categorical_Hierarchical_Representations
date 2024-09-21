@@ -128,7 +128,8 @@ def estimate_cat_dir(category_embeddings):
     return {'lda': lda_dir, 'mean': category_mean}
 
 industry_dir = estimate_cat_dir(torch.stack(aspect_embeddings))
-aspect_dirs = [estimate_cat_dir(torch.unsqueeze(embedding, 0)) for embedding in aspect_embeddings]
+# aspect_dirs = [estimate_cat_dir(torch.stack([embedding, embedding])) for embedding in aspect_embeddings]
+aspect_dirs = [{ 'lda': embedding, 'mean': embedding } for embedding in aspect_embeddings]
 
 # build diagram
 
