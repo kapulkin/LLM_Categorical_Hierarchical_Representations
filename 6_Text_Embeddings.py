@@ -63,7 +63,7 @@ def find_gemma_2_positions(markdown):
     aspect_positions = []
     for match in re.finditer(r'\* \*\*(.*?):\*\*', markdown):
         aspect_name = match.group(1)
-        aspect_positions.append((aspect_name, match.start()))
+        aspect_positions.append((aspect_name, match.start(1)))
 
     return (industry_name, industry_position), aspect_positions
     
@@ -78,7 +78,7 @@ def find_llama_3_1_positions(markdown):
     aspect_positions = []
     for match in re.finditer(r'\*\*(.*?)\*\*', markdown):
         aspect_name = match.group(1)
-        aspect_positions.append((aspect_name, match.start()))
+        aspect_positions.append((aspect_name, match.start(1)))
 
     return (industry_name, industry_position), aspect_positions
 
@@ -86,9 +86,9 @@ industry, aspect_positions = find_gemma_2_positions(text)
 
 industry_name, industry_position = industry
 
-print(f"industry: {industry_name}, ")
-for aspect_name, aspect_position in aspect_positions.items():
-    print(f"aspect: {text[aspect_position:aspect_position + 10]}")
+print(f"industry: {industry_name}, {industry_position}")
+for aspect_name, aspect_position in aspect_positions:
+    print(f"aspect: {aspect_name}, {aspect_position}")
 
 #%%
 # map text position to token position
