@@ -229,13 +229,12 @@ def build_3d_plot(dirs, embeddings):
     ax.quiver(0, 0, 0, P1[0], P1[1], P1[2], color='r', arrow_length_ratio=0.01)
     ax.quiver(0, 0, 0, P2[0], P2[1], P2[2], color='g', arrow_length_ratio=0.01)
     ax.quiver(0, 0, 0, P3[0], P3[1], P3[2], color='b', arrow_length_ratio=0.01)
+    ax.quiver(0, 0, 0, P4[0], P4[1], P4[2], color='k', arrow_length_ratio=0.1, linewidth=2)
 
-
-    scatter1 = ax.scatter(proj1[:,0], proj1[:,1], proj1[:,2], c='r', label=cat1)
-    scatter2 = ax.scatter(proj2[:,0], proj2[:,1], proj2[:,2], c='g', label=cat2)
-    scatter3 = ax.scatter(proj3[:,0], proj3[:,1], proj3[:,2], c='b', label=cat3)
+    # scatter1 = ax.scatter(proj1[:,0], proj1[:,1], proj1[:,2], c='r', label=cat1)
+    # scatter2 = ax.scatter(proj2[:,0], proj2[:,1], proj2[:,2], c='g', label=cat2)
+    # scatter3 = ax.scatter(proj3[:,0], proj3[:,1], proj3[:,2], c='b', label=cat3)
     scatter = ax.scatter(proj[:,0], proj[:,1], proj[:,2], c='gray', s= 0.05, alpha = 0.01)
-
 
     scale = 1.2
     ax.text(P1[0]*scale + 2, P1[1]* scale, P1[2]*scale, cat1, bbox=dict(facecolor='r', alpha=0.2))
@@ -243,22 +242,40 @@ def build_3d_plot(dirs, embeddings):
     ax.text(P3[0]*scale, P3[1]* scale, P3[2]*scale, cat3, bbox=dict(facecolor='b', alpha=0.2))
     ax.text(P4[0]-0.6, P4[1]-0.6, P4[2], rf'$\bar{{\ell}}_{{{cat4}}}$', bbox=dict(facecolor='k', alpha=0.2))
 
-    ax.set_xlim(-8,10)
-    ax.set_ylim(-8,10)
-    ax.set_zlim(-2.5, 15.5)
+    normal_vector = np.cross(P2 - P1, P3 - P1)
+    normal_vector = normal_vector / np.linalg.norm(normal_vector)
+    normal_mag = P1 @ normal_vector
+    normal_vector = normal_vector * normal_mag
 
-    ax.view_init(elev=20, azim=70)
+    P1_normal = P1 - normal_vector
+    P2_normal = P2 - normal_vector
+    P3_normal = P3 - normal_vector
 
+    ax.quiver(normal_vector[0], normal_vector[1], normal_vector[2], P1_normal[0], P1_normal[1], P1_normal[2],
+            color='r', linestyle =  "--", arrow_length_ratio=0.01)
+    ax.quiver(normal_vector[0], normal_vector[1], normal_vector[2], P2_normal[0], P2_normal[1], P2_normal[2],
+            color='g', linestyle =  "--", arrow_length_ratio=0.01)
+    ax.quiver(normal_vector[0], normal_vector[1], normal_vector[2], P3_normal[0], P3_normal[1], P3_normal[2],
+            color='b', linestyle =  "--", arrow_length_ratio=0.01)
+
+    ax.quiver(0, 0, 0, normal_vector[0], normal_vector[1], normal_vector[2], color='purple',
+            linestyle =  "--", arrow_length_ratio=0.01)
+
+    ax.set_xlim(0, 250)
+    ax.set_ylim(0, 250)
+    ax.set_zlim(0, 250)
+
+    ax.view_init(elev=20, azim=75)
     plt.tight_layout()
     fig.savefig(f"figures/two_3D_plots.png", dpi=300, bbox_inches='tight')
     plt.show()
 
-dirs_dict = { aspect_name: aspect_dir for (aspect_name, _), aspect_dir, _ in zip(aspect_positions, aspect_dirs, range(3)) }
-dirs_dict[industry_name] = industry_dir
+dirs_dict = { aspect_name[:4]: aspect_dir for (aspect_name, _), aspect_dir in zip(aspect_positions[-3:], aspect_dirs[-3:]) }
+dirs_dict[industry_name[:4]] = industry_dir
 
 build_3d_plot(
     dirs_dict,
-    aspect_embeddings[:3] + [industry_embedding]
+    aspect_embeddings[-3:] + [industry_embedding]
 )
 
 #%% Check logits calculation
