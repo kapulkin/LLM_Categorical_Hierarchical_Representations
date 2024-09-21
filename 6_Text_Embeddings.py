@@ -98,19 +98,24 @@ for aspect_name, aspect_position in aspect_positions:
 def make_embedding(model, hidden_state, g):
     lm_head = model.get_output_embeddings()
     logits = lm_head(hidden_state)
+    token = torch.argmax(logits)
+    print(f"token: {token}")
+    token_text = tokenizer.decode([token])
+    print(f"decoded token: {token_text}")
     logits = logits / model.config.final_logit_softcapping
     logits = torch.tanh(logits)
     logits = logits * model.config.final_logit_softcapping
+    logits = logits / torch.norm(logits)
 
     logits = logits[0][0].detach()
 
     return logits @ g
 
-industry_token_position = text_position_to_token[industry_position]
+industry_token_position = text_position_to_token[industry_position] - len(tokens.input_ids[0])
 industry_hidden_state = output.hidden_states[industry_token_position][-1]
 industry_embedding = make_embedding(model, industry_hidden_state, g)
 
-aspect_token_positions = [text_position_to_token[position] for _, position in aspect_positions ]
+aspect_token_positions = [text_position_to_token[position] - len(tokens.input_ids[0]) for _, position in aspect_positions ]
 aspect_hidden_states = [output.hidden_states[position][-1] for position in aspect_token_positions]
 aspect_embeddings = [make_embedding(model, hidden_state, g) for hidden_state in aspect_hidden_states]
 
