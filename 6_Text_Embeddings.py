@@ -118,6 +118,12 @@ industry_embedding = make_embedding(model, industry_hidden_state, g)
 aspect_token_positions = [text_position_to_token[position] - len(tokens.input_ids[0]) for _, position in aspect_positions ]
 aspect_hidden_states = [output.hidden_states[position][-1] for position in aspect_token_positions]
 aspect_embeddings = [make_embedding(model, hidden_state, g) for hidden_state in aspect_hidden_states]
+#%%
+def one_hot_embedding(token, g):
+    return g[token]
+
+industry_embedding_1h = one_hot_embedding(industry_token_position, g)
+aspect_embeddings_1h = [one_hot_embedding(position, g) for position in aspect_token_positions]
 
 #%%
 # make dirs from emebddings for industry and aspects
@@ -179,7 +185,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
-def build_3d_plot(dirs, embeddings):
+def build_3d_plot(dirs, embeddings, axis_size = 250):
     fig = plt.figure(figsize=(20, 8))
     ax = fig.add_subplot(111, projection='3d')
 
@@ -261,9 +267,9 @@ def build_3d_plot(dirs, embeddings):
     ax.quiver(0, 0, 0, normal_vector[0], normal_vector[1], normal_vector[2], color='purple',
             linestyle =  "--", arrow_length_ratio=0.01)
 
-    ax.set_xlim(0, 250)
-    ax.set_ylim(0, 250)
-    ax.set_zlim(0, 250)
+    ax.set_xlim(0, axis_size)
+    ax.set_ylim(0, axis_size)
+    ax.set_zlim(0, axis_size)
 
     ax.view_init(elev=20, azim=75)
     plt.tight_layout()
@@ -277,6 +283,12 @@ build_3d_plot(
     dirs_dict,
     aspect_embeddings[-3:] + [industry_embedding]
 )
+
+# build_3d_plot(
+#     dirs_dict,
+#     aspect_embeddings_1h[-3:] + [industry_embedding_1h]
+# )
+
 
 #%% Check logits calculation
 
